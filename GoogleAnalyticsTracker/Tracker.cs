@@ -4,7 +4,6 @@ using System.Configuration;
 using System.Globalization;
 using System.Net;
 using System.Text;
-using System.Threading.Tasks;
 
 namespace GoogleAnalyticsTracker
 {
@@ -195,22 +194,20 @@ namespace GoogleAnalyticsTracker
 
             request.UserAgent = UserAgent;
 
-            Task.Factory.FromAsync(request.BeginGetResponse, result => request.EndGetResponse(result), null)
-                .ContinueWith(task =>
-                                  {
-                                      try
-                                      {
-                                          task.Result.Close();
-                                          if (task.IsFaulted && task.Exception != null && ThrowOnErrors)
-                                          {
-                                              throw task.Exception;
-                                          }
-                                      }
-                                      catch
-                                      {
-                                      }
-                                  });
+            request.BeginGetResponse(r =>
+            {
+                try
+                {
+                    var response = request.EndGetResponse(r);
+                    //ignore response
+                }
+                catch
+                {
+                    //suppress error
+                }
+            }, null);
         }
+
 
         #region IDisposable Members
 
