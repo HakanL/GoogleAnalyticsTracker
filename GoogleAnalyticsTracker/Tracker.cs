@@ -140,7 +140,7 @@ namespace GoogleAnalyticsTracker
             RequestUrlAsync(UseSsl ? BeaconUrlSsl : BeaconUrl, parameters);
         }
 
-        public void TrackUserTiming(string pageTitle, string pageUrl, string category, string variable, TimeSpan time, string label = null)
+        public void TrackUserTiming(string pageTitle, string pageUrl, string category, string variable, TimeSpan time, string label)
         {
             var parameters = new Dictionary<string, string>();
             AddStandardParameters(parameters);
