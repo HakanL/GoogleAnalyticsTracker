@@ -24,6 +24,9 @@ namespace GoogleAnalyticsTracker
 
         public string TrackingAccount { get; set; } // utmac
         public string TrackingDomain { get; set; }
+        public string ScreenResolution { get; set; }
+        public string ViewPort { get; set; }
+        public bool? JavaEnabled { get; set; }
 
         public string Hostname { get; set; }
         public string Language { get; set; }
@@ -31,8 +34,6 @@ namespace GoogleAnalyticsTracker
         public string CharacterSet { get; set; }
 
         internal CustomVariable[] CustomVariables { get; set; }
-
-        public bool ThrowOnErrors { get; set; }
 
         public CookieContainer CookieContainer { get; set; }
 
@@ -61,8 +62,6 @@ namespace GoogleAnalyticsTracker
             Language = "en";
             UserAgent = string.Format("Tracker/1.0 ({0}; {1}; {2})", Environment.OSVersion.Platform, Environment.OSVersion.Version, osversionstring);
             CookieContainer = new CookieContainer();
-
-            ThrowOnErrors = false;
 
             InitializeUtmHid();
             InitializeCharset();
@@ -108,19 +107,31 @@ namespace GoogleAnalyticsTracker
             CustomVariables[position - 1] = new CustomVariable(name, value);
         }
 
-        public void TrackPageView(string pageTitle, string pageUrl)
+        private void AddStandardParameters(Dictionary<string, string> parameters)
         {
-            Dictionary<string, string> parameters = new Dictionary<string, string>();
             parameters.Add("AnalyticsVersion", AnalyticsVersion);
             parameters.Add("utmn", GenerateUtmn());
             parameters.Add("utmhn", Hostname);
             parameters.Add("utmcs", CharacterSet);
             parameters.Add("utmul", Language);
-            parameters.Add("utmdt", pageTitle);
             parameters.Add("utmhid", _sessionId);
-            parameters.Add("utmp", pageUrl);
             parameters.Add("utmac", TrackingAccount);
             parameters.Add("utmcc", _cookieValue);
+            if(!string.IsNullOrEmpty(ScreenResolution))
+                parameters.Add("utmsr", ScreenResolution);
+            if (!string.IsNullOrEmpty(ViewPort))
+                parameters.Add("utmvp", ViewPort);
+            if (JavaEnabled.HasValue)
+                parameters.Add("utmje", JavaEnabled.Value ? "1" : "0");
+        }
+
+        public void TrackPageView(string pageTitle, string pageUrl)
+        {
+            var parameters = new Dictionary<string, string>();
+            AddStandardParameters(parameters);
+
+            parameters.Add("utmdt", pageTitle);
+            parameters.Add("utmp", pageUrl);
 
             var utme = _utmeGenerator.Generate();
             if (!string.IsNullOrEmpty(utme))
@@ -129,39 +140,41 @@ namespace GoogleAnalyticsTracker
             RequestUrlAsync(UseSsl ? BeaconUrlSsl : BeaconUrl, parameters);
         }
 
+        public void TrackUserTiming(string pageTitle, string pageUrl, string category, string variable, TimeSpan time, string label = null)
+        {
+            var parameters = new Dictionary<string, string>();
+            AddStandardParameters(parameters);
+
+            parameters.Add("utmt", "event");
+
+            var utme = _utmeGenerator.Generate();
+            parameters.Add("utme", string.Format("14(90!{0}*{1}*{2})(90!{3:F0})", variable, category, label ?? "", time.TotalMilliseconds) + utme);
+            parameters.Add("utmdt", pageTitle);
+            parameters.Add("utmp", pageUrl);
+
+            RequestUrlAsync(UseSsl ? BeaconUrlSsl : BeaconUrl, parameters);
+        }
+
         public void TrackEvent(string category, string action, string label, int value)
         {
-            Dictionary<string, string> parameters = new Dictionary<string, string>();
-            parameters.Add("AnalyticsVersion", AnalyticsVersion);
-            parameters.Add("utmn", GenerateUtmn());
-            parameters.Add("utmhn", Hostname);
+            var parameters = new Dictionary<string, string>();
+            AddStandardParameters(parameters);
+
             parameters.Add("utmni", "1");
             parameters.Add("utmt", "event");
 
             var utme = _utmeGenerator.Generate();
             parameters.Add("utme", string.Format("5({0}*{1}*{2})({3})", category, action, label ?? "", value) + utme);
 
-            parameters.Add("utmcs", CharacterSet);
-            parameters.Add("utmul", Language);
-            parameters.Add("utmhid", _sessionId);
-            parameters.Add("utmac", TrackingAccount);
-            parameters.Add("utmcc", _cookieValue);
-
             RequestUrlAsync(UseSsl ? BeaconUrlSsl : BeaconUrl, parameters);
         }
 
         public void TrackTransaction(string orderId, string storeName, string total, string tax, string shipping, string city, string region, string country)
         {
-            Dictionary<string, string> parameters = new Dictionary<string, string>();
-            parameters.Add("AnalyticsVersion", AnalyticsVersion);
-            parameters.Add("utmn", GenerateUtmn());
-            parameters.Add("utmhn", Hostname);
+            var parameters = new Dictionary<string, string>();
+            AddStandardParameters(parameters);
+
             parameters.Add("utmt", "event");
-            parameters.Add("utmcs", CharacterSet);
-            parameters.Add("utmul", Language);
-            parameters.Add("utmhid", _sessionId);
-            parameters.Add("utmac", TrackingAccount);
-            parameters.Add("utmcc", _cookieValue);
 
             parameters.Add("utmtid", orderId);
             parameters.Add("utmtst", storeName);
