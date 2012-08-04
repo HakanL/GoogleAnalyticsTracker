@@ -7,7 +7,7 @@ using System.Text;
 
 namespace GoogleAnalyticsTracker
 {
-    public class Tracker
+    public partial class Tracker
         : IDisposable
     {
         private const string TrackingAccountConfigurationKey = "GoogleAnalyticsTracker.TrackingAccount";
@@ -19,11 +19,9 @@ namespace GoogleAnalyticsTracker
 
         private readonly UtmeGenerator _utmeGenerator;
 
-        private string _sessionId; // Session ID - utmhid
-        private string _cookieValue; // Cookie related variables - utmcc
-
         public string TrackingAccount { get; set; } // utmac
         public string TrackingDomain { get; set; }
+        public IAnalyticsSession AnalyticsSession { get; set; }
         public string ScreenResolution { get; set; }
         public string ViewPort { get; set; }
         public bool? JavaEnabled { get; set; }
@@ -41,15 +39,26 @@ namespace GoogleAnalyticsTracker
 
 #if !WINDOWS_PHONE
         public Tracker()
-            : this(ConfigurationManager.AppSettings[TrackingAccountConfigurationKey], ConfigurationManager.AppSettings[TrackingDomainConfigurationKey])
+            : this(new AnalyticsSession())
+        {
+        }
+
+        public Tracker(IAnalyticsSession analyticsSession)
+            : this(ConfigurationManager.AppSettings[TrackingAccountConfigurationKey], ConfigurationManager.AppSettings[TrackingDomainConfigurationKey], analyticsSession)
+        {
+        }
+
+        public Tracker(string trackingAccount, string trackingDomain)
+            : this(trackingAccount, trackingDomain, new AnalyticsSession())
         {
         }
 #endif
 
-        public Tracker(string trackingAccount, string trackingDomain)
+        public Tracker(string trackingAccount, string trackingDomain, IAnalyticsSession analyticsSession)
         {
             TrackingAccount = trackingAccount;
             TrackingDomain = trackingDomain;
+            AnalyticsSession = analyticsSession;
 
 #if !WINDOWS_PHONE
             string hostname = Dns.GetHostName();
@@ -63,34 +72,16 @@ namespace GoogleAnalyticsTracker
             UserAgent = string.Format("Tracker/1.0 ({0}; {1}; {2})", Environment.OSVersion.Platform, Environment.OSVersion.Version, osversionstring);
             CookieContainer = new CookieContainer();
 
-            InitializeUtmHid();
             InitializeCharset();
-            InitializeCookieVariable();
 
             CustomVariables = new CustomVariable[5];
 
             _utmeGenerator = new UtmeGenerator(this);
         }
 
-        private void InitializeUtmHid()
-        {
-            var random = new Random((int)DateTime.UtcNow.Ticks);
-            _sessionId = random.Next(100000000, 999999999).ToString(CultureInfo.InvariantCulture);
-        }
-
         private void InitializeCharset()
         {
             CharacterSet = "UTF-8";
-        }
-
-        private void InitializeCookieVariable()
-        {
-            var random = new Random((int)DateTime.UtcNow.Ticks);
-            var cookie = string.Format("{0}{1}", random.Next(100000000, 999999999), "00145214523");
-
-            var randomvalue = random.Next(1000000000, 2147483647).ToString(CultureInfo.InvariantCulture);
-
-            _cookieValue = string.Format("__utma=1.{0}.{1}.{2}.{2}.15;+__utmz=1.{2}.1.1.utmcsr=(direct)|utmccn=(direct)|utmcmd=(none);", cookie, randomvalue, DateTime.UtcNow.Ticks);
         }
 
         private string GenerateUtmn()
@@ -114,9 +105,9 @@ namespace GoogleAnalyticsTracker
             parameters.Add("utmhn", Hostname);
             parameters.Add("utmcs", CharacterSet);
             parameters.Add("utmul", Language);
-            parameters.Add("utmhid", _sessionId);
+            parameters.Add("utmhid", AnalyticsSession.GenerateSessionId());
             parameters.Add("utmac", TrackingAccount);
-            parameters.Add("utmcc", _cookieValue);
+            parameters.Add("utmcc", AnalyticsSession.GenerateCookieValue());
             if(!string.IsNullOrEmpty(ScreenResolution))
                 parameters.Add("utmsr", ScreenResolution);
             if (!string.IsNullOrEmpty(ViewPort))
@@ -166,6 +157,12 @@ namespace GoogleAnalyticsTracker
             var utme = _utmeGenerator.Generate();
             parameters.Add("utme", string.Format("5({0}*{1}*{2})({3})", category, action, label ?? "", value) + utme);
 
+            parameters.Add("utmcs", CharacterSet);
+            parameters.Add("utmul", Language);
+            parameters.Add("utmhid", AnalyticsSession.GenerateSessionId());
+            parameters.Add("utmac", TrackingAccount);
+            parameters.Add("utmcc", AnalyticsSession.GenerateCookieValue());
+
             RequestUrlAsync(UseSsl ? BeaconUrlSsl : BeaconUrl, parameters);
         }
 
@@ -175,6 +172,11 @@ namespace GoogleAnalyticsTracker
             AddStandardParameters(parameters);
 
             parameters.Add("utmt", "event");
+            parameters.Add("utmcs", CharacterSet);
+            parameters.Add("utmul", Language);
+            parameters.Add("utmhid", AnalyticsSession.GenerateSessionId());
+            parameters.Add("utmac", TrackingAccount);
+            parameters.Add("utmcc", AnalyticsSession.GenerateCookieValue());
 
             parameters.Add("utmtid", orderId);
             parameters.Add("utmtst", storeName);
