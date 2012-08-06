@@ -52,7 +52,7 @@ namespace GoogleAnalyticsTracker.Web
             return previousVisitTime;
         }
 
-        protected override int GetSessionCount()
+        public override int GetSessionCount()
         {
             var sessionCount = GetHttpContext().GetDeserializedCookieValue<int>(StorageKeySessionCount);
             GetHttpContext().SetSerializedCookieValue(StorageKeySessionCount, ++sessionCount);

@@ -15,7 +15,7 @@ namespace GoogleAnalyticsTracker
 
         const string BeaconUrl = "http://www.google-analytics.com/__utm.gif";
         const string BeaconUrlSsl = "https://ssl.google-analytics.com/_utm.gif";
-        const string AnalyticsVersion = "4.3"; // Analytics version - AnalyticsVersion
+        const string AnalyticsVersion = "5.3.4"; // Analytics version - AnalyticsVersion
 
         private readonly UtmeGenerator _utmeGenerator;
 
@@ -61,7 +61,7 @@ namespace GoogleAnalyticsTracker
             AnalyticsSession = analyticsSession;
 
 #if !WINDOWS_PHONE
-            string hostname = Dns.GetHostName();
+            string hostname = Dns.GetHostName().ToLower();
             string osversionstring = Environment.OSVersion.VersionString;
 #else
             string hostname = "Windows Phone";
@@ -100,7 +100,8 @@ namespace GoogleAnalyticsTracker
 
         private void AddStandardParameters(Dictionary<string, string> parameters)
         {
-            parameters.Add("AnalyticsVersion", AnalyticsVersion);
+            parameters.Add("utmwv", AnalyticsVersion);
+            parameters.Add("utms", AnalyticsSession.GetSessionCount().ToString());
             parameters.Add("utmn", GenerateUtmn());
             parameters.Add("utmhn", Hostname);
             parameters.Add("utmcs", CharacterSet);
@@ -128,6 +129,8 @@ namespace GoogleAnalyticsTracker
             if (!string.IsNullOrEmpty(utme))
                 parameters.Add("utme", utme);
 
+            parameters.Add("utmu", "qB~");
+
             RequestUrlAsync(UseSsl ? BeaconUrlSsl : BeaconUrl, parameters);
         }
 
@@ -139,9 +142,11 @@ namespace GoogleAnalyticsTracker
             parameters.Add("utmt", "event");
 
             var utme = _utmeGenerator.Generate();
-            parameters.Add("utme", string.Format("14(90!{0}*{1}*{2})(90!{3:F0})", variable, category, label ?? "", time.TotalMilliseconds) + utme);
+            parameters.Add("utme", string.Format("14(90!{0}*{1}*20*{2})(90!{3:F0})", variable, category, label ?? "", time.TotalMilliseconds) + utme);
             parameters.Add("utmdt", pageTitle);
             parameters.Add("utmp", pageUrl);
+
+            parameters.Add("utmu", "qBAAAAAAAAAAAAAAAAAAQ~");
 
             RequestUrlAsync(UseSsl ? BeaconUrlSsl : BeaconUrl, parameters);
         }
@@ -157,11 +162,7 @@ namespace GoogleAnalyticsTracker
             var utme = _utmeGenerator.Generate();
             parameters.Add("utme", string.Format("5({0}*{1}*{2})({3})", category, action, label ?? "", value) + utme);
 
-            parameters.Add("utmcs", CharacterSet);
-            parameters.Add("utmul", Language);
-            parameters.Add("utmhid", AnalyticsSession.GenerateSessionId());
-            parameters.Add("utmac", TrackingAccount);
-            parameters.Add("utmcc", AnalyticsSession.GenerateCookieValue());
+            parameters.Add("utmu", "6BAAAAAAAAAAAAAAAAAAQ~");
 
             RequestUrlAsync(UseSsl ? BeaconUrlSsl : BeaconUrl, parameters);
         }
@@ -172,12 +173,6 @@ namespace GoogleAnalyticsTracker
             AddStandardParameters(parameters);
 
             parameters.Add("utmt", "event");
-            parameters.Add("utmcs", CharacterSet);
-            parameters.Add("utmul", Language);
-            parameters.Add("utmhid", AnalyticsSession.GenerateSessionId());
-            parameters.Add("utmac", TrackingAccount);
-            parameters.Add("utmcc", AnalyticsSession.GenerateCookieValue());
-
             parameters.Add("utmtid", orderId);
             parameters.Add("utmtst", storeName);
             parameters.Add("utmtto", total);
@@ -193,11 +188,11 @@ namespace GoogleAnalyticsTracker
         private void RequestUrlAsync(string url, Dictionary<string, string> parameters)
         {
             // Create GET string
-            StringBuilder data = new StringBuilder();
-            foreach (var parameter in parameters)
-            {
-                data.Append(string.Format("{0}={1}&", parameter.Key, Uri.EscapeDataString(parameter.Value)));
-            }
+            var parameterStrings = new List<string>();
+            foreach(var parameter in parameters)
+                parameterStrings.Add(string.Format("{0}={1}", parameter.Key, Uri.EscapeDataString(parameter.Value)));
+
+            var data = string.Join("&", parameterStrings.ToArray());
 
             // Create request
             HttpWebRequest request = (HttpWebRequest)WebRequest.Create(string.Format("{0}?{1}", url, data));
@@ -208,6 +203,8 @@ namespace GoogleAnalyticsTracker
 #endif
 
             request.UserAgent = UserAgent;
+
+            AnalyticsSession.IncSessionCount();
 
             request.BeginGetResponse(r =>
             {

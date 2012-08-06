@@ -10,6 +10,11 @@ namespace GoogleAnalyticsTracker
         protected string Cookie { get; set; }
         protected int SessionCount { get; set; }
 
+        public AnalyticsSession()
+        {
+            SessionCount = 1;
+        }
+
         protected virtual string GetUniqueVisitorId()
         {
             Random random = new Random();
@@ -31,9 +36,14 @@ namespace GoogleAnalyticsTracker
             return DateTime.UtcNow.ToUnixTime();
         }
 
-        protected virtual int GetSessionCount()
+        public virtual int GetSessionCount()
         {
-            return ++SessionCount;
+            return SessionCount;
+        }
+
+        public virtual void IncSessionCount()
+        {
+            SessionCount++;
         }
 
         public virtual string GenerateCookieValue()

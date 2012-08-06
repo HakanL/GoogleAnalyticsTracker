@@ -4,5 +4,7 @@ namespace GoogleAnalyticsTracker
     {
         string GenerateSessionId();
         string GenerateCookieValue();
+        int GetSessionCount();
+        void IncSessionCount();
     }
 }
